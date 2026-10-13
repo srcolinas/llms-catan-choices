@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: '3'
+
+env:
+  LANGFUSE_INIT_ORG_ID: llms-catan-placement
+  LANGFUSE_INIT_ORG_NAME: llms-catan-placement
+  LANGFUSE_INIT_PROJECT_ID: catan-placement
+  LANGFUSE_INIT_PROJECT_NAME: catan-placement
+  LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-local-dev
+  LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-local-dev
+  LANGFUSE_INIT_USER_EMAIL: dev@localhost.com
+  LANGFUSE_INIT_USER_NAME: dev
+  LANGFUSE_INIT_USER_PASSWORD: localdevpassword
+  LANGFUSE_PUBLIC_KEY: pk-lf-local-dev
+  LANGFUSE_SECRET_KEY: sk-lf-local-dev
+  LANGFUSE_BASE_URL: http://localhost:3000
+  SOLVER_LANGFUSE_PUBLIC_KEY: pk-lf-local-dev
+  SOLVER_LANGFUSE_SECRET_KEY: sk-lf-local-dev
+  SOLVER_LANGFUSE_BASE_URL: http://localhost:3000
+
+
+tasks:
+  clean:
+    desc: Remove cache files and dependencies from workspace
+    cmds:
+      - rm -rf .venv .mypy_cache .ruff_cache .pytest_cache target
+      - find . -type d -name '__pycache__' -prune -exec rm -rf {} +
+      - find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+      - rm -rf language
+
+  setup:
+    desc: Setup project dependencies
+    deps: [clean]
+    cmds:
+      - uv sync --all-packages --group dev
+      - cargo fetch
+
+  setup-langfuse:
+    desc: Setup Langfuse
+    cmds:
+      - git clone https://github.com/langfuse/langfuse.git
+
+  start-langfuse:
+    dir: langfuse
+    cmds:
+      - docker compose up
+
+  stop-langfuse:
+    dir: langfuse
+    cmds:
+      - docker compose down -v
+
+  build:
+    desc: Rebuild the Rust simulation into the Python package
+    dir: packages/simulation
+    cmds:
+      - uv run --with maturin maturin develop
+
+  format:
+    desc: Format Python and Rust sources
+    cmds:
+      - uv run ruff format packages
+      - uv run ruff check --fix packages
+      - cargo fmt
+
+  lint:
+    desc: Run linters and type checks
+    cmds:
+      - uv run ruff format --check packages
+      - uv run ruff check packages
+      - uv run mypy packages
+      - cargo fmt --check
+      - cargo clippy --all-targets --all-features -- -D warnings
+
+  test:
+    desc: Run Python and Rust tests
+    cmds:
+      - uv run pytest packages
+      - cargo test --workspace --all-features
+
+  solve:
+    desc: Generate LLM answers
+    dotenv: [.env]
+    cmds:
+      - uv run solve {{.CLI_ARGS}}
+
+  view:
+    desc: Visualize choices and evaluations from a directory or one JSONL file
+    cmds:
+      - uv run python -m solver.view {{.CLI_ARGS}}
+
+  evaluate:
+    desc: Evaluate LLM predictions
+    cmds:
+      - cargo run -p catan-placement-evaluate -- {{.CLI_ARGS}}

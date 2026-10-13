@@ -1,0 +1,12 @@
+[package]
+name = "catan-py"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+catan-simulation = { path = "../catan-simulation" }
+pyo3 = { version = "0.29.3", features = ["abi3-py312"] }

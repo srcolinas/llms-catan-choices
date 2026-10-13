@@ -1,0 +1,16 @@
+[package]
+name = "catan-simulation"
+version.workspace = true
+edition.workspace = true
+
+[features]
+serde = ["dep:serde"]
+
+[dependencies]
+petgraph = "0.8.3"
+rand = "0.9"
+serde = { version = "1", features = ["derive"], optional = true }
+
+[dev-dependencies]
+rstest = "0.27"
+serde_json = "1"

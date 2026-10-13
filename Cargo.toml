@@ -1,0 +1,7 @@
+[workspace]
+members = ["crates/catan-simulation", "crates/catan-py", "crates/evaluate"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"

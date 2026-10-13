@@ -1,0 +1,14 @@
+target/
+data/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.env
+langfuse/
+
+data
+data2

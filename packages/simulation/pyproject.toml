@@ -1,0 +1,15 @@
+[project]
+name = "simulation"
+version = "0.1.0"
+description = "Python bindings for the Catan setup simulator"
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["maturin>=1.8,<2"]
+build-backend = "maturin"
+
+[tool.maturin]
+manifest-path = "../../crates/catan-py/Cargo.toml"
+module-name = "simulation._native"
+python-source = "src"
