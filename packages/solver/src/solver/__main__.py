@@ -13,6 +13,7 @@ from tqdm import tqdm
 from simulation import Board, Simulator
 from solver.dataset import append_lines, failure_line, game_line, pending_seeds
 from solver.players import PLAYERS
+from solver.players.human import active_table, deactivate, game_seed, open_table
 from solver.settings import Settings, settings
 
 _DEFAULT_WORKERS = 16
@@ -66,16 +67,49 @@ def play(
     *,
     workers: int = _DEFAULT_WORKERS,
     observer: object | None = None,
+    human_browser: bool = True,
+    human_beat: float = 0.4,
 ) -> Iterator[str]:
     """Play ``seeds``, yielding one JSONL row per game in that order.
 
     Games run ``workers`` at a time. A row is yielded as soon as that seed and
     every earlier seed in ``seeds`` have finished, so the caller can write it
-    immediately.
+    immediately. When ``human`` is one of ``kinds``, one local page opens for
+    the batch and stays up until every row has finished.
     """
     ordered = list(seeds)
     if not ordered:
         return
+    table = None
+    if "human" in kinds:
+        table = open_table(
+            ordered,
+            loaded.heuristics.read_text(),
+            open_browser=human_browser,
+            beat=human_beat,
+        )
+    try:
+        yield from _play_all(
+            ordered,
+            kinds,
+            loaded,
+            workers=workers,
+            observer=observer,
+        )
+    finally:
+        if table is not None:
+            table.close()
+            deactivate(table)
+
+
+def _play_all(
+    ordered: Sequence[int],
+    kinds: Sequence[str],
+    loaded: Settings,
+    *,
+    workers: int,
+    observer: object | None,
+) -> Iterator[str]:
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures: dict[Future[str], int] = {
             pool.submit(
@@ -101,13 +135,20 @@ def _play_one(
     loaded: Settings,
     observer: object | None,
 ) -> str:
+    token = game_seed.set(seed)
+    ok = False
     try:
         with _game_span(observer, seed) if observer is not None else nullcontext():
             rng = random.Random(seed)
             board = Board.from_seed(seed)
+            table = active_table()
+            if table is not None:
+                table.begin(seed, board)
             players = [PLAYERS[kind](loaded, rng) for kind in kinds]
             rng.shuffle(players)
+            _bind_seats(players)
             report = Simulator(board, players).simulate(1)
+            ok = all(slot is not None for seat in report.placements for slot in seat)
             return game_line(
                 seed,
                 board,
@@ -122,6 +163,18 @@ def _play_one(
     # BaseException, so stopping the process still leaves flushed rows in place.
     except Exception as exc:  # noqa: BLE001
         return failure_line(seed, len(kinds), str(exc))
+    finally:
+        table = active_table()
+        if table is not None:
+            table.finish(seed, ok=ok)
+        game_seed.reset(token)
+
+
+def _bind_seats(players: Sequence[object]) -> None:
+    for index, player in enumerate(players):
+        bind = getattr(player, "bind_seat", None)
+        if callable(bind):
+            bind(index)
 
 
 def _accepted_calls(
@@ -196,7 +249,7 @@ def _players_argument(value: str) -> list[str]:
     if len(kinds) not in (3, 4) or any(kind not in PLAYERS for kind in kinds):
         raise argparse.ArgumentTypeError(
             "expected 3 or 4 players, each `random`, `generative`, `jev`, "
-            "`system-one`, or `openai-decision`"
+            "`system-one`, `openai-decision`, or `human`"
         )
     return kinds
 

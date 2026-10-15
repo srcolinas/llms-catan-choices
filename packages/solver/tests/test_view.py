@@ -135,6 +135,7 @@ def test_load_games_omits_null_placements(tmp_path: Path) -> None:
 
 
 def test_page_marks_unfinished_rows_and_counts_them() -> None:
+    assert "function drawBoard(game, shown)" in PAGE
     assert "✗ Row" in PAGE
     assert "not scored because the draft did not finish" in PAGE
     row = _choices_row()
